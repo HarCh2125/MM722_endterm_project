@@ -1,0 +1,70 @@
+LAMMPS (2 Aug 2023 - Update 3)
+# LAMMPS script to simulate confined argon in a slit
+
+units lj
+atom_style atomic
+dimension 3
+
+# Define simulation box
+variable Lx equal 180
+variable Ly equal 180
+variable Lz equal 5   # Adjust this for wall distance
+region box block 0 ${Lx} 0 ${Ly} 0 ${Lz} units box
+region box block 0 180 0 ${Ly} 0 ${Lz} units box
+region box block 0 180 0 180 0 ${Lz} units box
+region box block 0 180 0 180 0 5 units box
+create_box 1 box
+Created orthogonal box = (0 0 0) to (180 180 5)
+  1 by 1 by 1 MPI processor grid
+
+# Define region for atom placement (shrink boundaries slightly)
+variable lower_edge equal 0.6  # Slightly larger than wall interaction lower bound
+variable upper_edge equal 4.4  # (${Lz} - 0.6), evaluated since Lz=5
+region confined block 0 ${Lx} 0 ${Ly} ${lower_edge} ${upper_edge} units box
+region confined block 0 180 0 ${Ly} ${lower_edge} ${upper_edge} units box
+region confined block 0 180 0 180 ${lower_edge} ${upper_edge} units box
+region confined block 0 180 0 180 0.6 ${upper_edge} units box
+region confined block 0 180 0 180 0.6 4.4 units box
+create_atoms 1 random 40000 12345 confined
+Created 40000 atoms
+  using lattice units in orthogonal box = (0 0 0) to (180 180 5)
+  create_atoms CPU = 0.005 seconds
+
+# Set the mass of argon
+mass 1 39.948  # Argon atomic mass in amu
+
+# Lennard-Jones parameters for argon
+pair_style lj/cut 5.0
+pair_coeff 1 1 1.0 1.0 5.0  # Sigma=1.0, Epsilon=1.0 (LJ units)
+
+# Define wall interactions
+variable upper_wall_edge equal 4.5  # (${Lz} - 0.5), evaluated since Lz=5
+region lower_wall block INF INF INF INF 0.0 0.5 units box
+region upper_wall block INF INF INF INF ${upper_wall_edge} ${Lz} units box
+region upper_wall block INF INF INF INF 4.5 ${Lz} units box
+region upper_wall block INF INF INF INF 4.5 5 units box
+fix lower_wall all wall/region lower_wall lj93 1.0 1.0 5.0
+fix upper_wall all wall/region upper_wall lj93 1.0 1.0 5.0
+
+# Define simulation parameters
+velocity all create 1.0 12345
+fix 1 all npt temp 1.0 1.0 1.0 x 0.0 0.0 1.0 y 0.0 0.0 1.0
+timestep 0.004
+
+# Equilibration and sampling
+run 2000000  # Equilibration
+Generated 0 of 0 mixed pair_coeff terms from geometric mixing rule
+Neighbor list info ...
+  update: every = 1 steps, delay = 0 steps, check = yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 5.3
+  ghost atom cutoff = 5.3
+  binsize = 2.65, bins = 68 68 2
+  1 neighbor lists, perpetual/occasional/extra = 1 0 0
+  (1) pair lj/cut, perpetual
+      attributes: half, newton on
+      pair build: half/bin/atomonly/newton
+      stencil: half/bin/3d
+      bin: standard
+ERROR on proc 0: Particle outside surface of region used in fix wall/region (src/fix_wall_region.cpp:307)
+Last command: run 2000000  # Equilibration
